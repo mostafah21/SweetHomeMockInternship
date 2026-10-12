@@ -2002,12 +2002,83 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
     }
     return strokeWidth;
   }
-  
+
   /**
-   * Prints this component plan at the scale given in the home print attributes or at a scale 
+   * Prints this component plan at the scale given in the home print attributes or at a scale
    * that makes it fill <code>pageFormat</code> imageable size if this attribute is <code>null</code>.
    */
+  @Override
   public int print(Graphics g, PageFormat pageFormat, int pageIndex) {
+    if (pageIndex < 0) {
+      return NO_SUCH_PAGE;
+    }
+
+    Level originalLevel = this.home.getSelectedLevel();
+
+    try {
+      int pageOffset = 0;
+
+      for (Level level : this.home.getLevels()) {
+        if (!level.isViewable()) {
+          continue;
+        }
+
+        // Temporarily switch to the level being printed
+        this.home.setSelectedLevel(level);
+
+        List<Selectable> printedItems = getPaintedItems();
+        Rectangle2D bounds = getItemsBounds(g, printedItems);
+
+        if (bounds == null) {
+          continue;
+        }
+
+        int levelPageCount = 1;
+
+        if (this.home.getPrint() != null
+                && this.home.getPrint().getPlanScale() != null) {
+
+          float scale = this.home.getPrint()
+                  .getPlanScale().floatValue()
+                  * LengthUnit.centimeterToInch(72);
+
+          int pagesPerRow = Math.max(1,
+                  (int) Math.ceil(
+                          bounds.getWidth() * scale
+                                  / pageFormat.getImageableWidth()));
+
+          int pagesPerColumn = Math.max(1,
+                  (int) Math.ceil(
+                          bounds.getHeight() * scale
+                                  / pageFormat.getImageableHeight()));
+
+          levelPageCount = pagesPerRow * pagesPerColumn;
+        }
+
+        if (pageIndex < pageOffset + levelPageCount) {
+          return printSelectedLevel(
+                  g,
+                  pageFormat,
+                  pageIndex - pageOffset
+          );
+        }
+
+        pageOffset += levelPageCount;
+      }
+
+      return NO_SUCH_PAGE;
+
+    } finally {
+      // Restore whichever level was selected before printing
+      this.home.setSelectedLevel(originalLevel);
+    }
+  }
+
+  /**
+   * Prints this component plan at the scale given in the home print attributes or at a scale
+   * that makes it fill <code>pageFormat</code> imageable size if this attribute is <code>null</code>.
+   */
+  public int printSelectedLevel(Graphics g, PageFormat pageFormat, int pageIndex) {
     List<Selectable> printedItems = getPaintedItems(); 
     Rectangle2D printedItemBounds = getItemsBounds(g, printedItems);
     if (printedItemBounds != null) {
